@@ -8,15 +8,15 @@ from pygame.locals import *
 
 
 class _CubeletColour(IntEnum):
-    RED = 1
-    GREEN = 2
+    GREEN = 1
+    RED = 2
     BLUE = 4
     ORANGE = 8
-    YELLOW = 16
-    WHITE = 32
+    WHITE = 16
+    YELLOW = 32
 
 
-class _Cubelet(object):
+class _Cubelet():
     __cube_size = -1
 
     __vertex_buffer = [np.array([-1, 1, -1]), np.array([1, 1, -1]),
@@ -24,15 +24,19 @@ class _Cubelet(object):
                        np.array([-1, 1, 1]), np.array([1, 1, 1]),
                        np.array([-1, -1, 1]), np.array([1, -1, 1])]
 
-    __index_buffer = [(0, 1), (0, 2), (0, 4), (1, 3), (1, 5), (2, 3),
-                      (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
+    __index_buffer = [(0, 2, 6, 4), (4, 5, 7, 6), (1, 3, 7, 5),
+                      (0, 1, 3, 2), (0, 1, 5, 4), (2, 3, 7, 6)]
+
+    __colour_buffer = [(0, 1, 0), (1, 0, 0), (0, 0, 1),
+                       (1, 0.5, 0), (1, 1, 1), (1, 1, 0)]
 
     def __init__(self, x: int, y: int, z: int):
         if self.__cube_size == -1:
             raise ValueError("Cube size must be set before creating cubelets")
 
         self.colour = 0
-        self._pos_offset = np.array([x, y, z]) * 2 - (self.__cube_size - 1)
+        self._pos_offset = np.array([x * 2, y * 2, z * 2]) - np.array(
+            [self.__cube_size - 1, self.__cube_size - 1, self.__cube_size - 1])
 
     @classmethod
     def set_cube_size(cls, cube_size):
@@ -48,9 +52,42 @@ class _Cubelet(object):
         if not self.is_valid():
             return
 
-        for idx1, idx2 in self.__index_buffer:
-            glVertex3f(*(self.__vertex_buffer[idx1] + self._pos_offset))
-            glVertex3f(*(self.__vertex_buffer[idx2] + self._pos_offset))
+        for idx, colour in enumerate(_CubeletColour):
+            if self.colour & colour == colour:
+                vertex_indicies = self.__index_buffer[idx]
+
+                glBegin(GL_QUADS)
+                glColor3fv(self.__colour_buffer[idx])
+                glVertex3f(
+                    *(self.__vertex_buffer[vertex_indicies[0]] + self._pos_offset))
+                glVertex3f(
+                    *(self.__vertex_buffer[vertex_indicies[1]] + self._pos_offset))
+                glVertex3f(
+                    *(self.__vertex_buffer[vertex_indicies[2]] + self._pos_offset))
+                glVertex3f(
+                    *(self.__vertex_buffer[vertex_indicies[3]] + self._pos_offset))
+                glEnd()
+
+                glLineWidth(2.0)
+                glBegin(GL_LINES)
+                glColor3f(0, 0, 0)
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[0]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[1]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[1]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[2]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[2]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[3]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[3]] + self._pos_offset) * 1.005))
+                glVertex3f(
+                    *((self.__vertex_buffer[vertex_indicies[0]] + self._pos_offset) * 1.005))
+                glEnd()
 
 
 class Cube(object):
@@ -74,13 +111,13 @@ class Cube(object):
                     if (x == size - 1):
                         cubelet.add_colour(_CubeletColour.BLUE)
                     if (y == 0):
-                        cubelet.add_colour(_CubeletColour.WHITE)
-                    if (y == size - 1):
                         cubelet.add_colour(_CubeletColour.YELLOW)
+                    if (y == size - 1):
+                        cubelet.add_colour(_CubeletColour.WHITE)
                     if (z == 0):
-                        cubelet.add_colour(_CubeletColour.RED)
-                    if (z == size - 1):
                         cubelet.add_colour(_CubeletColour.ORANGE)
+                    if (z == size - 1):
+                        cubelet.add_colour(_CubeletColour.RED)
 
                     if cubelet.is_valid():
                         cubelet_idx = x + size * (y + size * z)
@@ -93,10 +130,8 @@ class Cube(object):
         pass
 
     def draw(self):
-        glBegin(GL_LINES)
         for cubelet in self.cubelets:
             cubelet.draw()
-        glEnd()
 
 
 def main():
@@ -110,9 +145,11 @@ def main():
     pygame.init()
     pygame.display.set_mode(display_size, DOUBLEBUF | OPENGL)
 
+    glEnable(GL_DEPTH_TEST)
     gluPerspective(fov, display_size[0]/display_size[1], z_near, z_far)
     glTranslatef(0.0, 0.0, -cube_size * 5)
-    glRotatef(0, 0, 0, 0)
+    glRotatef(90, 0, 1, 1)
+    glClearColor(0.5, 0.5, 0.5, 1)
 
     cube = Cube(cube_size)
 
@@ -125,6 +162,7 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         cube.draw()
+        glRotate(0.5, 1, 1, 1)
 
         pygame.display.flip()
         pygame.time.wait(10)
