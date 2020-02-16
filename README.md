@@ -1,1 +1,1 @@
-# rubiks-cube
+# OpenGL spinning cube
